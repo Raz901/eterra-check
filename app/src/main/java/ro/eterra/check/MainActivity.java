@@ -184,7 +184,7 @@ public final class MainActivity extends Activity {
 
     private void renderHome() {
         review.clear();
-        frame("eTerra Check");
+        frame("eTerra Check · " + BuildConfig.VERSION_NAME);
         Button importButton = button("Importă captură", BLUE, WHITE, view -> pickImage());
         importButton.setEnabled(!reading);
         body.addView(importButton);

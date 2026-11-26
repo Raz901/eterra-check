@@ -10,6 +10,14 @@ final class TableGrid {
     private static final int[] COLUMNS = {0, 2, 6, 7};
 
     static List<Cell[]> locate(int[] pixels, int width, int height) {
+        List<Cell[]> exact = locateByColor(pixels, width, height);
+        List<Cell[]> contrast = locateByContrast(pixels, width, height);
+        if (exact.size() > 1 && exact.size() >= contrast.size()) return exact;
+        if (contrast.size() > 1) return contrast;
+        throw invalid();
+    }
+
+    private static List<Cell[]> locateByColor(int[] pixels, int width, int height) {
         int[] histogram = new int[256];
         for (int pixel : pixels) {
             int gray = gray(pixel);
@@ -20,42 +28,106 @@ final class TableGrid {
             if (histogram[i] > histogram[gridColor]) gridColor = i;
         }
         List<Integer> horizontal = lines(pixels, width, height, gridColor, false, 0);
-        if (horizontal.size() < 3) throw invalid();
-        int headerBottom = horizontal.get(0);
-        int firstBodyLine = findBodyStart(horizontal, headerBottom);
+        int firstBodyLine = findBodyStart(horizontal);
+        if (firstBodyLine < 0) return List.of();
         int bodyStart = horizontal.get(firstBodyLine);
-        List<Integer> vertical = lines(pixels, width, height, gridColor, true, bodyStart);
-        if (vertical.size() < 9) throw invalid();
+        return buildRows(horizontal, firstBodyLine,
+                lines(pixels, width, height, gridColor, true, bodyStart), true);
+    }
 
-        List<Cell[]> rows = new ArrayList<>();
+    private static List<Cell[]> locateByContrast(int[] pixels, int width, int height) {
+        byte[] luminance = new byte[pixels.length];
+        for (int i = 0; i < pixels.length; i++) {
+            int pixel = pixels[i];
+            luminance[i] = (byte) (((pixel >>> 16 & 255) * 3 + (pixel >>> 8 & 255) * 6
+                    + (pixel & 255)) / 10);
+        }
+        List<Cell[]> result = List.of();
+        for (double coverage : new double[]{0.55, 0.45, 0.35}) {
+            List<Cell[]> candidate = locateContrastGrid(luminance, width, height, coverage);
+            if (candidate.size() > result.size()) result = candidate;
+        }
+        return result;
+    }
+
+    private static List<Cell[]> locateContrastGrid(byte[] luminance, int width, int height, double coverage) {
+        List<Integer> horizontal = contrastLines(luminance, width, height, false, 0, width, coverage);
+        int firstBodyLine = findBodyStart(horizontal);
+        if (firstBodyLine < 0) return List.of();
+        int bodyStart = horizontal.get(firstBodyLine);
+        int bodyEnd = horizontal.get(horizontal.size() - 1);
+        List<Integer> vertical = contrastLines(luminance, width, height, true, bodyStart, bodyEnd, 0.55);
+        return buildRows(horizontal, firstBodyLine, vertical, false);
+    }
+
+    private static List<Integer> contrastLines(byte[] values, int width, int height, boolean vertical,
+                                                int from, int to, double coverage) {
+        List<Integer> lines = new ArrayList<>();
+        int length = vertical ? width : height;
+        int step = vertical ? 1 : width;
+        int best = 0;
+        for (int i = 2; i + 2 < length; i++) {
+            int count = 0;
+            for (int j = from; j < to; j++) {
+                int p = vertical ? j * width + i : i * width + j;
+                int center = values[p] & 255;
+                int before = values[p - 2 * step] & 255;
+                int after = values[p + 2 * step] & 255;
+                if (center >= 165 && before >= 205 && after >= 205
+                        && center + 4 < Math.min(before, after)) count++;
+            }
+            if (count < (to - from) * coverage) continue;
+            int last = lines.size() - 1;
+            if (last < 0 || i - lines.get(last) > 2) {
+                lines.add(i);
+                best = count;
+            } else if (count > best) {
+                lines.set(last, i);
+                best = count;
+            }
+        }
+        return lines;
+    }
+
+    private static List<Cell[]> buildRows(List<Integer> horizontal, int firstBodyLine,
+                                          List<Integer> vertical, boolean exact) {
+        if (vertical.size() < 9) return List.of();
+        int headerBottom = horizontal.get(0);
+        int bodyStart = horizontal.get(firstBodyLine);
         int rowHeight = horizontal.get(firstBodyLine + 1) - bodyStart;
-        rows.add(cells(vertical, Math.max(0, headerBottom - rowHeight + 3), headerBottom - 1));
+        int margin = exact ? 2 : Math.max(1, rowHeight / 12);
+        int bottomMargin = exact ? 1 : 0;
+        List<Cell[]> rows = new ArrayList<>();
+        rows.add(cells(vertical, Math.max(0, headerBottom - Math.round(rowHeight * 0.86f)),
+                headerBottom - bottomMargin, margin, bottomMargin));
         for (int i = firstBodyLine; i + 1 < horizontal.size(); i++) {
             int start = horizontal.get(i);
             int end = horizontal.get(i + 1);
             if (end - start >= rowHeight * 0.75 && end - start <= rowHeight * 1.35) {
-                rows.add(cells(vertical, start + 2, end - 1));
+                rows.add(cells(vertical, start + margin, end - bottomMargin, margin, bottomMargin));
             }
         }
         return rows;
     }
 
-    private static int findBodyStart(List<Integer> lines, int headerBottom) {
+    private static int findBodyStart(List<Integer> lines) {
+        if (lines.size() < 3) return -1;
+        int headerBottom = lines.get(0);
         for (int i = 1; i + 1 < Math.min(lines.size(), 5); i++) {
             int rowHeight = lines.get(i + 1) - lines.get(i);
             int filterHeight = lines.get(i) - headerBottom;
-            if (rowHeight >= 10 && filterHeight >= rowHeight * 1.15 && filterHeight <= rowHeight * 1.8) {
+            if (rowHeight >= 6 && filterHeight >= rowHeight * 1.15 && filterHeight <= rowHeight * 1.8) {
                 return i;
             }
         }
-        throw invalid();
+        return -1;
     }
 
-    private static Cell[] cells(List<Integer> x, int top, int bottom) {
+    private static Cell[] cells(List<Integer> x, int top, int bottom, int margin, int bottomMargin) {
         Cell[] cells = new Cell[COLUMNS.length];
         for (int i = 0; i < COLUMNS.length; i++) {
             int column = COLUMNS[i];
-            cells[i] = new Cell(x.get(column) + 2, top, x.get(column + 1) - 1, bottom);
+            cells[i] = new Cell(x.get(column) + margin, top, x.get(column + 1) - bottomMargin, bottom);
         }
         return cells;
     }
