@@ -3,7 +3,11 @@ package ro.eterra.check;
 import java.text.Normalizer;
 import java.util.Locale;
 
-record CaseRow(String code, String number, String client, String status) {
+record CaseRow(String number, String client, String status) {
+    static boolean validNumber(String number) {
+        return number.matches("[0-9]+");
+    }
+
     static String normalized(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).trim()

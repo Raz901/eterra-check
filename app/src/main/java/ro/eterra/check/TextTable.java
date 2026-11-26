@@ -15,9 +15,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 final class TextTable {
-    private static final Pattern CODE = Pattern.compile("[0-9OIl]{8,}[A-Za-z0-9]{0,4}");
-
-    private static final Pattern REQUEST = Pattern.compile("[0-9]{4,8}");
+    private static final Pattern REQUEST = Pattern.compile("[0-9]{1,9}");
 
     static List<TableGrid.Cell[]> locate(TextRecognizer reader, Bitmap image) throws Exception {
         // Textul capturilor micșorate are adesea sub 10 pixeli înălțime.
@@ -68,7 +66,7 @@ final class TextTable {
             if (!rows.isEmpty()) return rows;
         }
         throw new IllegalArgumentException(
-                "Nu am putut citi tabelul din imagine. Verifică dacă anteturile și codurile de înregistrare sunt lizibile.");
+                "Nu am putut citi tabelul din imagine. Verifică dacă anteturile și numerele cererilor sunt lizibile.");
     }
 
     private static List<TableGrid.Cell[]> rows(List<Word> words, List<Word> header,
@@ -76,25 +74,18 @@ final class TextTable {
         Word client = find(header, "client", status.x());
         if (client == null) client = find(header, "beneficiar", status.x());
         if (client == null) return Collections.emptyList();
-        Word code = find(header, "cod", client.x());
-        if (code == null) return Collections.emptyList();
-        Word registration = find(header, "inreg", code.x());
-        Word number = find(header, "cerere", code.x());
-        if (number == null) return Collections.emptyList();
+        Word number = find(header, "cerere", client.x());
+        if (number == null || number.x() - client.x() < width * 0.15) {
+            return Collections.emptyList();
+        }
 
-        int spacing = number.x() - code.x();
-        if (spacing < width * 0.025 || spacing > width * 0.18) return Collections.emptyList();
-        int codeCenter = registration != null && registration.x() < number.x()
-                ? (code.x() + registration.x()) / 2 : code.x();
         int numberCenter = number.x() - Math.round(number.height() * 0.65f);
-        int halfWidth = Math.max(8, Math.round((numberCenter - codeCenter) * 0.48f));
-        int[] centers = {status.x(), client.x(), codeCenter, numberCenter};
+        int halfWidth = Math.max(8, Math.round((client.x() - status.x()) * 0.25f));
+        int[] centers = {status.x(), client.x(), numberCenter};
 
         List<Word> anchors = new ArrayList<>();
         for (Word word : words) {
             if (word.y() <= status.y() + status.height() * 2) continue;
-            boolean codeCandidate = Math.abs(word.x() - codeCenter) < halfWidth
-                    && CODE.matcher(word.text()).matches();
             boolean requestCandidate = Math.abs(word.x() - numberCenter) < halfWidth
                     && REQUEST.matcher(word.text()).matches();
             boolean statusCandidate = Math.abs(word.x() - status.x()) < halfWidth
@@ -103,7 +94,7 @@ final class TextTable {
                                 "tehnica", "documentatie" -> true;
                         default -> false;
                     };
-            if ((codeCandidate || requestCandidate || statusCandidate) && word.height() <= status.height() * 1.7) {
+            if ((requestCandidate || statusCandidate) && word.height() <= status.height() * 1.7) {
                 anchors.add(word);
             }
         }

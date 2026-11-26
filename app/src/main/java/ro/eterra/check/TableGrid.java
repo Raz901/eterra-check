@@ -8,7 +8,7 @@ final class TableGrid {
     record Cell(int left, int top, int right, int bottom) {}
 
     // Ordinea coloanelor din eTerra. Anteturile sunt verificate prin OCR.
-    private static final int[] COLUMNS = {0, 2, 6, 7};
+    private static final int[] COLUMNS = {0, 2, 7};
 
     static List<Cell[]> locate(int[] pixels, int width, int height) {
         List<Cell[]> exact = locateByColor(pixels, width, height);

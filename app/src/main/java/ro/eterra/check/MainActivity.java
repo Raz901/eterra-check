@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +46,7 @@ public final class MainActivity extends Activity {
     private Uri pendingImage;
     private String message = "";
 
-    private record ReviewRow(CheckBox include, EditText code, EditText number, EditText client, EditText status) {}
+    private record ReviewRow(CheckBox include, EditText number, EditText client, EditText status) {}
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -217,7 +216,7 @@ public final class MainActivity extends Activity {
     private LinearLayout caseCard(CaseRow row) {
         LinearLayout card = card();
         card.addView(label(row.client().isEmpty() ? "Beneficiar necompletat" : row.client(), 18, INK, true));
-        String identity = row.number().isEmpty() ? row.code() : "Cerere " + row.number() + " · " + row.code();
+        String identity = row.number().isEmpty() ? "Nr. cerere necompletat" : "Cerere " + row.number();
         card.addView(label(identity, 14, MUTED, false));
         return card;
     }
@@ -225,18 +224,17 @@ public final class MainActivity extends Activity {
     private void renderReview(List<CaseRow> rows) {
         frame("Verifică importul");
         addNotice(rows.size() + " rânduri citite. Corectează câmpurile și debifează rândurile pe care vrei să le omiți."
-                + " Importă capturile în ordine cronologică.");
+                + " Rândurile fără număr lizibil sunt debifate. Importă capturile în ordine cronologică.");
         for (CaseRow row : rows) {
             LinearLayout item = card();
             CheckBox include = new CheckBox(this);
             include.setText("Importă rândul");
-            include.setChecked(true);
+            include.setChecked(CaseRow.validNumber(row.number()));
             item.addView(include);
-            EditText code = field(item, "Cod înregistrare", row.code(), false);
             EditText number = field(item, "Nr. cerere", row.number(), true);
             EditText client = field(item, "Beneficiar", row.client(), false);
             EditText status = field(item, "Stare", row.status(), false);
-            review.add(new ReviewRow(include, code, number, client, status));
+            review.add(new ReviewRow(include, number, client, status));
         }
         LinearLayout actions = new LinearLayout(this);
         actions.setPadding(dp(16), dp(4), dp(16), dp(8));
@@ -252,25 +250,24 @@ public final class MainActivity extends Activity {
 
     private void save() {
         List<CaseRow> incoming = new ArrayList<>();
-        Set<String> codes = new HashSet<>();
+        Set<String> numbers = new HashSet<>();
         for (ReviewRow row : review) {
             if (!row.include().isChecked()) continue;
-            String code = value(row.code()).replaceAll("\\s", "").toUpperCase(Locale.ROOT);
             String number = value(row.number());
             String status = value(row.status());
-            if (!code.matches("[0-9]{8,15}[A-Z]{1,3}") || !codes.add(code)) {
-                fieldError(row.code(), "Verifică formatul și unicitatea codului de înregistrare.");
+            if (!CaseRow.validNumber(number)) {
+                fieldError(row.number(), "Introdu numărul cererii, folosind doar cifre.");
                 return;
             }
-            if (!number.matches("[0-9]*")) {
-                fieldError(row.number(), "Numărul cererii trebuie să conțină doar cifre.");
+            if (!numbers.add(number)) {
+                fieldError(row.number(), "Acest număr de cerere apare de două ori în selecție.");
                 return;
             }
             if (status.isEmpty()) {
                 fieldError(row.status(), "Completează starea citită din captură.");
                 return;
             }
-            incoming.add(new CaseRow(code, number, value(row.client()), CaseRow.displayStatus(status)));
+            incoming.add(new CaseRow(number, value(row.client()), CaseRow.displayStatus(status)));
         }
         if (incoming.isEmpty()) {
             notice.setText("Selectează cel puțin un rând pentru import.");

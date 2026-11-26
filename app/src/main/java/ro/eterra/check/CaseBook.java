@@ -25,7 +25,9 @@ final class CaseBook {
         JSONArray rows = data.optJSONArray("cases");
         for (int i = 0; rows != null && i < rows.length(); i++) {
             CaseRow row = decode(rows.getJSONObject(i));
-            cases.put(row.code(), row);
+            String key = CaseRow.validNumber(row.number()) && !cases.containsKey(row.number())
+                    ? row.number() : "#" + i;
+            cases.put(key, row);
         }
         JSONArray changes = data.optJSONArray("history");
         for (int i = 0; changes != null && i < changes.length(); i++) {
@@ -43,18 +45,18 @@ final class CaseBook {
         int added = 0;
         int changed = 0;
         for (CaseRow row : incoming) {
-            CaseRow previous = nextCases.get(row.code());
+            CaseRow previous = nextCases.get(row.number());
             if (previous == null) {
                 added++;
             } else {
-                row = new CaseRow(row.code(), row.number().isEmpty() ? previous.number() : row.number(),
+                row = new CaseRow(row.number(),
                         row.client().isEmpty() ? previous.client() : row.client(), row.status());
                 if (!CaseRow.statusKey(previous.status()).equals(CaseRow.statusKey(row.status()))) {
                     nextHistory.add(0, new Change(row, previous.status(), now));
                     changed++;
                 }
             }
-            nextCases.put(row.code(), row);
+            nextCases.put(row.number(), row);
         }
 
         JSONArray rows = new JSONArray();
@@ -73,12 +75,12 @@ final class CaseBook {
     }
 
     private static JSONObject encode(CaseRow row) throws JSONException {
-        return new JSONObject().put("code", row.code()).put("number", row.number())
+        return new JSONObject().put("number", row.number())
                 .put("client", row.client()).put("status", row.status());
     }
 
     private static CaseRow decode(JSONObject row) throws JSONException {
-        return new CaseRow(row.getString("code"), row.getString("number"),
+        return new CaseRow(row.getString("number"),
                 row.getString("client"), row.getString("status"));
     }
 }

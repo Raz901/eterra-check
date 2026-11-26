@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 final class ScreenshotReader {
     private static final int SLOT = 84;
@@ -48,8 +47,8 @@ final class ScreenshotReader {
 
     private static List<CaseRow> readRows(TextRecognizer reader, Bitmap image,
                                           List<TableGrid.Cell[]> cells) throws Exception {
-        String[][] values = new String[cells.size()][4];
-        for (int column = 0; column < 4; column++) {
+        String[][] values = new String[cells.size()][3];
+        for (int column = 0; column < 3; column++) {
             for (int start = 0; start < cells.size(); start += BATCH) {
                 int end = Math.min(start + BATCH, cells.size());
                 List<TableGrid.Cell> strip = new ArrayList<>(end - start);
@@ -61,8 +60,7 @@ final class ScreenshotReader {
         List<CaseRow> rows = new ArrayList<>();
         for (String[] row : values) {
             if (Arrays.stream(row).allMatch(String::isEmpty)) continue;
-            rows.add(new CaseRow(row[2].replaceAll("\\s", "").toUpperCase(Locale.ROOT),
-                    row[3].replaceAll("\\s", ""), row[1], CaseRow.displayStatus(row[0])));
+            rows.add(new CaseRow(row[2].replaceAll("\\s", ""), row[1], CaseRow.displayStatus(row[0])));
         }
         return rows;
     }
@@ -70,14 +68,14 @@ final class ScreenshotReader {
     private static void checkHeader(TextRecognizer reader, Bitmap image,
                                     TableGrid.Cell[] header) throws Exception {
         List<String> titles = readCells(reader, image, Arrays.asList(header));
-        String[] expected = {"status", "client", "cod", "cerere"};
+        String[] expected = {"status", "client", "cerere"};
         int matches = 0;
         for (int i = 0; i < expected.length; i++) {
             if (CaseRow.normalized(titles.get(i)).contains(expected[i])) matches++;
         }
         // O literă nerecunoscută în antet nu invalidează restul tabelului.
-        if (matches < 3) {
-            throw new IllegalArgumentException("Antetul tabelului nu a fost citit complet. Include coloanele Status, Client, Cod înregistrare și Nr. cerere.");
+        if (matches < 2) {
+            throw new IllegalArgumentException("Antetul tabelului nu a fost citit complet. Include coloanele Status, Client și Nr. cerere.");
         }
     }
 
