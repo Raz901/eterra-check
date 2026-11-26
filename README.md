@@ -8,7 +8,7 @@ Aplicație Android 9+ pentru urmărirea documentațiilor din capturi eTerra.
 
 Aplicația potrivește documentațiile după codul de înregistrare. Numărul cererii și beneficiarul pot lipsi. Rândurile care nu apar într-o captură își păstrează ultima stare cunoscută. Pentru a urmări și soluționările, include în captură documentațiile finalizate din eTerra.
 
-Citirea imaginii și salvarea documentațiilor au loc pe telefon. Aplicația nu preia stările automat din portal.
+Citirea imaginii și salvarea documentațiilor au loc pe telefon. Fiecare import folosește captura aleasă de tine.
 
 ## Compilare
 
