@@ -30,23 +30,33 @@ final class ScreenshotReader {
         int height = image.getHeight();
         int[] pixels = new int[width * height];
         image.getPixels(pixels, 0, width, 0, 0, width, height);
-        List<TableGrid.Cell[]> grid = TableGrid.locate(pixels, width, height);
-        List<TableGrid.Cell[]> cells = grid.subList(1, grid.size());
-        String[][] values = new String[cells.size()][4];
         TextRecognizer reader = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         try {
-            checkHeader(reader, image, grid.get(0));
-            for (int column = 0; column < 4; column++) {
-                for (int start = 0; start < cells.size(); start += BATCH) {
-                    int end = Math.min(start + BATCH, cells.size());
-                    List<TableGrid.Cell> strip = new ArrayList<>(end - start);
-                    for (int row = start; row < end; row++) strip.add(cells.get(row)[column]);
-                    List<String> result = readCells(reader, image, strip);
-                    for (int row = start; row < end; row++) values[row][column] = result.get(row - start);
-                }
+            List<TableGrid.Cell[]> grid;
+            try {
+                grid = TableGrid.locate(pixels, width, height);
+                checkHeader(reader, image, grid.get(0));
+                grid = grid.subList(1, grid.size());
+            } catch (IllegalArgumentException missingGrid) {
+                grid = TextTable.locate(reader, image);
             }
+            return readRows(reader, image, grid);
         } finally {
             reader.close();
+        }
+    }
+
+    private static List<CaseRow> readRows(TextRecognizer reader, Bitmap image,
+                                          List<TableGrid.Cell[]> cells) throws Exception {
+        String[][] values = new String[cells.size()][4];
+        for (int column = 0; column < 4; column++) {
+            for (int start = 0; start < cells.size(); start += BATCH) {
+                int end = Math.min(start + BATCH, cells.size());
+                List<TableGrid.Cell> strip = new ArrayList<>(end - start);
+                for (int row = start; row < end; row++) strip.add(cells.get(row)[column]);
+                List<String> result = readCells(reader, image, strip);
+                for (int row = start; row < end; row++) values[row][column] = result.get(row - start);
+            }
         }
         List<CaseRow> rows = new ArrayList<>();
         for (String[] row : values) {

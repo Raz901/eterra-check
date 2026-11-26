@@ -1,6 +1,7 @@
 package ro.eterra.check;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 final class TableGrid {
@@ -29,7 +30,7 @@ final class TableGrid {
         }
         List<Integer> horizontal = lines(pixels, width, height, gridColor, false, 0);
         int firstBodyLine = findBodyStart(horizontal);
-        if (firstBodyLine < 0) return List.of();
+        if (firstBodyLine < 0) return Collections.emptyList();
         int bodyStart = horizontal.get(firstBodyLine);
         return buildRows(horizontal, firstBodyLine,
                 lines(pixels, width, height, gridColor, true, bodyStart), true);
@@ -42,7 +43,7 @@ final class TableGrid {
             luminance[i] = (byte) (((pixel >>> 16 & 255) * 3 + (pixel >>> 8 & 255) * 6
                     + (pixel & 255)) / 10);
         }
-        List<Cell[]> result = List.of();
+        List<Cell[]> result = Collections.emptyList();
         for (double coverage : new double[]{0.55, 0.45, 0.35}) {
             List<Cell[]> candidate = locateContrastGrid(luminance, width, height, coverage);
             if (candidate.size() > result.size()) result = candidate;
@@ -53,7 +54,7 @@ final class TableGrid {
     private static List<Cell[]> locateContrastGrid(byte[] luminance, int width, int height, double coverage) {
         List<Integer> horizontal = contrastLines(luminance, width, height, false, 0, width, coverage);
         int firstBodyLine = findBodyStart(horizontal);
-        if (firstBodyLine < 0) return List.of();
+        if (firstBodyLine < 0) return Collections.emptyList();
         int bodyStart = horizontal.get(firstBodyLine);
         int bodyEnd = horizontal.get(horizontal.size() - 1);
         List<Integer> vertical = contrastLines(luminance, width, height, true, bodyStart, bodyEnd, 0.55);
@@ -91,7 +92,7 @@ final class TableGrid {
 
     private static List<Cell[]> buildRows(List<Integer> horizontal, int firstBodyLine,
                                           List<Integer> vertical, boolean exact) {
-        if (vertical.size() < 9) return List.of();
+        if (vertical.size() < 9) return Collections.emptyList();
         int headerBottom = horizontal.get(0);
         int bodyStart = horizontal.get(firstBodyLine);
         int rowHeight = horizontal.get(firstBodyLine + 1) - bodyStart;
