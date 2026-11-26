@@ -23,6 +23,7 @@ record CaseRow(String code, String number, String client, String status) {
             case "solutionata" -> "Soluționată";
             case "necesita completari" -> "Necesită completări";
             case "documentatie tehnica" -> "Documentație tehnică";
+            case "confirmare primire solutie" -> "Confirmare primire soluție";
             default -> status.trim();
         };
     }
