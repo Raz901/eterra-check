@@ -9,7 +9,9 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -22,6 +24,8 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -41,12 +45,14 @@ public final class MainActivity extends Activity {
     private CaseBook book;
     private List<ReviewRow> review = new ArrayList<>();
     private TextView notice;
+    private TextView preview;
     private boolean historyVisible;
     private boolean reading;
     private Uri pendingImage;
     private String message = "";
 
-    private record ReviewRow(CheckBox include, EditText number, EditText client, EditText status) {}
+    private record ReviewRow(CheckBox include, EditText number, EditText client, EditText status,
+                             EditText uat, EditText deadline, EditText flow) {}
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -218,11 +224,16 @@ public final class MainActivity extends Activity {
         card.addView(label(row.client().isEmpty() ? "Beneficiar necompletat" : row.client(), 18, INK, true));
         String identity = row.number().isEmpty() ? "Nr. cerere necompletat" : "Cerere " + row.number();
         card.addView(label(identity, 14, MUTED, false));
+        if (!row.uat().isEmpty()) card.addView(label("UAT · " + row.uat(), 14, MUTED, false));
+        if (!row.deadline().isEmpty()) card.addView(label("Termen · " + row.deadline(), 14, MUTED, false));
+        if (!row.flow().isEmpty()) card.addView(label("Flux · " + row.flow(), 14, MUTED, false));
         return card;
     }
 
     private void renderReview(List<CaseRow> rows) {
         frame("Verifică importul");
+        preview = label("", 16, INK, false);
+        card().addView(preview);
         addNotice(rows.size() + " rânduri citite. Corectează câmpurile și debifează rândurile pe care vrei să le omiți."
                 + " Rândurile fără număr lizibil sunt debifate. Importă capturile în ordine cronologică.");
         for (CaseRow row : rows) {
@@ -234,8 +245,21 @@ public final class MainActivity extends Activity {
             EditText number = field(item, "Nr. cerere", row.number(), true);
             EditText client = field(item, "Beneficiar", row.client(), false);
             EditText status = field(item, "Stare", row.status(), false);
-            review.add(new ReviewRow(include, number, client, status));
+            EditText uat = field(item, "UAT", row.uat(), false);
+            EditText deadline = field(item, "Termen cerere", row.deadline(), false);
+            EditText flow = field(item, "Flux", row.flow(), false);
+            review.add(new ReviewRow(include, number, client, status, uat, deadline, flow));
+            include.setOnCheckedChangeListener((button, checked) -> refreshPreview());
+            TextWatcher watcher = new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence text, int start, int before, int count) {}
+                @Override public void afterTextChanged(Editable text) { refreshPreview(); }
+            };
+            for (EditText input : new EditText[]{number, client, status, uat, deadline, flow}) {
+                input.addTextChangedListener(watcher);
+            }
         }
+        refreshPreview();
         LinearLayout actions = new LinearLayout(this);
         actions.setPadding(dp(16), dp(4), dp(16), dp(8));
         actions.addView(button("Renunță", WHITE, INK, view -> {
@@ -246,6 +270,80 @@ public final class MainActivity extends Activity {
         actions.addView(button("Salvează importul", BLUE, WHITE, view -> save()),
                 new LinearLayout.LayoutParams(0, -2, 2));
         root.addView(actions);
+    }
+
+    private void refreshPreview() {
+        Map<String, CaseRow> previous = new LinkedHashMap<>();
+        for (CaseRow row : book.previousImport()) previous.put(row.number(), row);
+        if (previous.isEmpty()) {
+            preview.setText("Prima captură salvată va servi la comparația următoare.");
+            return;
+        }
+
+        Map<String, CaseRow> current = new LinkedHashMap<>();
+        int unresolved = 0;
+        for (ReviewRow field : review) {
+            if (!field.include().isChecked()) {
+                if (!CaseRow.validNumber(value(field.number()))) unresolved++;
+                continue;
+            }
+            CaseRow row = reviewValue(field);
+            if (!CaseRow.validNumber(row.number()) || row.status().isEmpty()
+                    || current.putIfAbsent(row.number(), row) != null) unresolved++;
+        }
+        if (current.isEmpty()) {
+            preview.setText("Selectează cel puțin o cerere cu număr și stare pentru comparație.");
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        List<String> details = new ArrayList<>();
+        int added = 0;
+        int matched = 0;
+        for (CaseRow row : current.values()) {
+            CaseRow before = previous.get(row.number());
+            if (before == null) {
+                added++;
+                continue;
+            }
+            matched++;
+            seen.add(row.number());
+            List<String> changes = new ArrayList<>();
+            if (!CaseRow.statusKey(before.status()).equals(CaseRow.statusKey(row.status()))) {
+                changes.add(before.status() + " → " + row.status());
+            }
+            compareField(changes, "Beneficiar", before.client(), row.client());
+            compareField(changes, "UAT", before.uat(), row.uat());
+            compareField(changes, "Termen", before.deadline(), row.deadline());
+            compareField(changes, "Flux", before.flow(), row.flow());
+            if (!changes.isEmpty()) {
+                String client = row.client().isEmpty() ? before.client() : row.client();
+                details.add("Cerere " + row.number() + (client.isEmpty() ? "" : " · " + client)
+                        + "\n" + String.join("\n", changes));
+            }
+        }
+
+        String conclusion = matched == 0 ? "Nicio cerere comună pentru comparație."
+                : details.isEmpty() ? "Fără modificări la cererile comune."
+                : details.size() + " cereri cu modificări.";
+        String baseline = book.hasSavedSnapshot() ? "Față de captura anterioară" : "Față de lucrările deja salvate";
+        String summary = baseline + "\n" + conclusion + "\n"
+                + added + " apar în această captură · " + (previous.size() - seen.size())
+                + " lipsesc din selecție";
+        if (unresolved > 0) summary += "\n" + unresolved + " rânduri rămân de verificat.";
+        if (!details.isEmpty()) summary += "\n\n" + String.join("\n\n", details);
+        preview.setText(summary);
+    }
+
+    private static void compareField(List<String> changes, String label, String before, String after) {
+        if (!before.isEmpty() && !after.isEmpty()
+                && !CaseRow.normalized(before).equals(CaseRow.normalized(after))) {
+            changes.add(label + " · " + before + " → " + after);
+        }
+    }
+
+    private static CaseRow reviewValue(ReviewRow row) {
+        return new CaseRow(value(row.number()), value(row.client()), CaseRow.displayStatus(value(row.status())),
+                value(row.uat()), value(row.deadline()), value(row.flow()));
     }
 
     private void save() {
@@ -267,7 +365,7 @@ public final class MainActivity extends Activity {
                 fieldError(row.status(), "Completează starea citită din captură.");
                 return;
             }
-            incoming.add(new CaseRow(number, value(row.client()), CaseRow.displayStatus(status)));
+            incoming.add(reviewValue(row));
         }
         if (incoming.isEmpty()) {
             notice.setText("Selectează cel puțin un rând pentru import.");

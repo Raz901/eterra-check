@@ -47,8 +47,10 @@ final class ScreenshotReader {
 
     private static List<CaseRow> readRows(TextRecognizer reader, Bitmap image,
                                           List<TableGrid.Cell[]> cells) throws Exception {
-        String[][] values = new String[cells.size()][3];
-        for (int column = 0; column < 3; column++) {
+        if (cells.isEmpty()) return Collections.emptyList();
+        int columns = cells.get(0).length;
+        String[][] values = new String[cells.size()][columns];
+        for (int column = 0; column < columns; column++) {
             for (int start = 0; start < cells.size(); start += BATCH) {
                 int end = Math.min(start + BATCH, cells.size());
                 List<TableGrid.Cell> strip = new ArrayList<>(end - start);
@@ -60,7 +62,7 @@ final class ScreenshotReader {
         List<CaseRow> rows = new ArrayList<>();
         for (String[] row : values) {
             if (Arrays.stream(row).allMatch(String::isEmpty)) continue;
-            rows.add(new CaseRow(row[2].replaceAll("\\s", ""), row[1], CaseRow.displayStatus(row[0])));
+            rows.add(new CaseRow(row[2].replaceAll("\\s", ""), row[1], CaseRow.displayStatus(row[0]), row[3], row[4], row[5]));
         }
         return rows;
     }
@@ -83,7 +85,10 @@ final class ScreenshotReader {
                                           List<TableGrid.Cell> cells) throws Exception {
         int count = cells.size();
         int atlasWidth = 0;
-        for (TableGrid.Cell cell : cells) atlasWidth = Math.max(atlasWidth, cellWidth(cell) + 32);
+        for (TableGrid.Cell cell : cells) {
+            if (cell != null) atlasWidth = Math.max(atlasWidth, cellWidth(cell) + 32);
+        }
+        if (atlasWidth == 0) return Collections.nCopies(count, "");
         Bitmap atlas = Bitmap.createBitmap(atlasWidth, count * SLOT, Bitmap.Config.ARGB_8888);
         try {
             Canvas canvas = new Canvas(atlas);
@@ -91,6 +96,7 @@ final class ScreenshotReader {
             Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
             for (int i = 0; i < count; i++) {
                 TableGrid.Cell cell = cells.get(i);
+                if (cell == null) continue;
                 Rect src = new Rect(cell.left(), cell.top(), cell.right(), cell.bottom());
                 int top = i * SLOT + 13;
                 canvas.drawBitmap(image, src, new Rect(16, top, 16 + cellWidth(cell), top + 58), paint);

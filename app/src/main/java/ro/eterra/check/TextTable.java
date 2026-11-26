@@ -81,7 +81,19 @@ final class TextTable {
 
         int numberCenter = number.x() - Math.round(number.height() * 0.65f);
         int halfWidth = Math.max(8, Math.round((client.x() - status.x()) * 0.25f));
-        int[] centers = {status.x(), client.x(), numberCenter};
+        Word uat = find(header, "uat", client.x());
+        Word deadline = find(header, "termen", numberCenter);
+        Word deadlineEnd = deadline == null ? null : find(header, "cerere", deadline.x());
+        Word flow = find(header, "flux", client.x());
+        int deadlineCenter = deadline == null ? -1 : deadline.x();
+        if (deadlineEnd != null && deadlineEnd.x() - deadlineCenter < halfWidth) {
+            deadlineCenter = (deadlineCenter + deadlineEnd.x()) / 2;
+        }
+        int[] centers = {status.x(), client.x(), numberCenter, uat == null ? -1 : uat.x(),
+                deadlineCenter, flow == null ? -1 : flow.x()};
+        Word object = find(header, "obiect", client.x());
+        int flowHalfWidth = flow != null && object != null && flow.x() > object.x()
+                ? Math.max(halfWidth, Math.round((flow.x() - object.x()) * 0.42f)) : halfWidth;
 
         List<Word> anchors = new ArrayList<>();
         for (Word word : words) {
@@ -137,8 +149,10 @@ final class TextTable {
             int bottom = Math.min(height, center + rowMargin);
             TableGrid.Cell[] row = new TableGrid.Cell[centers.length];
             for (int col = 0; col < centers.length; col++) {
-                int left = Math.max(0, centers[col] - halfWidth);
-                int right = Math.min(width, centers[col] + halfWidth);
+                if (centers[col] < 0) continue;
+                int columnWidth = col == 5 ? flowHalfWidth : halfWidth;
+                int left = Math.max(0, centers[col] - columnWidth);
+                int right = Math.min(width, centers[col] + columnWidth);
                 row[col] = new TableGrid.Cell(left, top, right, bottom);
             }
             result.add(row);

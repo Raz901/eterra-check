@@ -3,7 +3,7 @@ package ro.eterra.check;
 import java.text.Normalizer;
 import java.util.Locale;
 
-record CaseRow(String number, String client, String status) {
+record CaseRow(String number, String client, String status, String uat, String deadline, String flow) {
     static boolean validNumber(String number) {
         return number.matches("[0-9]+");
     }

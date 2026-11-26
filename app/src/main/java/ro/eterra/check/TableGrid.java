@@ -8,7 +8,7 @@ final class TableGrid {
     record Cell(int left, int top, int right, int bottom) {}
 
     // Ordinea coloanelor din eTerra. Anteturile sunt verificate prin OCR.
-    private static final int[] COLUMNS = {0, 2, 7};
+    private static final int[] COLUMNS = {0, 2, 7, 3, 9, 5};
 
     static List<Cell[]> locate(int[] pixels, int width, int height) {
         List<Cell[]> exact = locateByColor(pixels, width, height);
@@ -33,7 +33,7 @@ final class TableGrid {
         if (firstBodyLine < 0) return Collections.emptyList();
         int bodyStart = horizontal.get(firstBodyLine);
         return buildRows(horizontal, firstBodyLine,
-                lines(pixels, width, height, gridColor, true, bodyStart), true);
+                lines(pixels, width, height, gridColor, true, bodyStart), width, true);
     }
 
     private static List<Cell[]> locateByContrast(int[] pixels, int width, int height) {
@@ -58,7 +58,7 @@ final class TableGrid {
         int bodyStart = horizontal.get(firstBodyLine);
         int bodyEnd = horizontal.get(horizontal.size() - 1);
         List<Integer> vertical = contrastLines(luminance, width, height, true, bodyStart, bodyEnd, 0.55);
-        return buildRows(horizontal, firstBodyLine, vertical, false);
+        return buildRows(horizontal, firstBodyLine, vertical, width, false);
     }
 
     private static List<Integer> contrastLines(byte[] values, int width, int height, boolean vertical,
@@ -91,7 +91,7 @@ final class TableGrid {
     }
 
     private static List<Cell[]> buildRows(List<Integer> horizontal, int firstBodyLine,
-                                          List<Integer> vertical, boolean exact) {
+                                          List<Integer> vertical, int width, boolean exact) {
         if (vertical.size() < 9) return Collections.emptyList();
         int headerBottom = horizontal.get(0);
         int bodyStart = horizontal.get(firstBodyLine);
@@ -100,12 +100,12 @@ final class TableGrid {
         int bottomMargin = exact ? 1 : 0;
         List<Cell[]> rows = new ArrayList<>();
         rows.add(cells(vertical, Math.max(0, headerBottom - Math.round(rowHeight * 0.86f)),
-                headerBottom - bottomMargin, margin, bottomMargin));
+                headerBottom - bottomMargin, margin, bottomMargin, width));
         for (int i = firstBodyLine; i + 1 < horizontal.size(); i++) {
             int start = horizontal.get(i);
             int end = horizontal.get(i + 1);
             if (end - start >= rowHeight * 0.75 && end - start <= rowHeight * 1.35) {
-                rows.add(cells(vertical, start + margin, end - bottomMargin, margin, bottomMargin));
+                rows.add(cells(vertical, start + margin, end - bottomMargin, margin, bottomMargin, width));
             }
         }
         return rows;
@@ -124,11 +124,15 @@ final class TableGrid {
         return -1;
     }
 
-    private static Cell[] cells(List<Integer> x, int top, int bottom, int margin, int bottomMargin) {
+    private static Cell[] cells(List<Integer> x, int top, int bottom, int margin, int bottomMargin, int width) {
         Cell[] cells = new Cell[COLUMNS.length];
         for (int i = 0; i < COLUMNS.length; i++) {
             int column = COLUMNS[i];
-            cells[i] = new Cell(x.get(column) + margin, top, x.get(column + 1) - bottomMargin, bottom);
+            if (column >= x.size()) continue;
+            int right = column + 1 < x.size() ? x.get(column + 1) : width;
+            if (right > x.get(column) + margin + bottomMargin) {
+                cells[i] = new Cell(x.get(column) + margin, top, right - bottomMargin, bottom);
+            }
         }
         return cells;
     }
