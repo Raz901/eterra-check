@@ -12,10 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Pattern;
 
 final class TextTable {
-    private static final Pattern REQUEST = Pattern.compile("[0-9]{1,9}");
 
     static List<TableGrid.Cell[]> locate(TextRecognizer reader, Bitmap image) throws Exception {
         // Textul capturilor micșorate are adesea sub 10 pixeli înălțime.
@@ -99,7 +97,7 @@ final class TextTable {
         for (Word word : words) {
             if (word.y() <= status.y() + status.height() * 2) continue;
             boolean requestCandidate = Math.abs(word.x() - numberCenter) < halfWidth
-                    && REQUEST.matcher(word.text()).matches();
+                    && !CaseRow.readNumber(word.text()).isEmpty();
             boolean statusCandidate = Math.abs(word.x() - status.x()) < halfWidth
                     && switch (normalizedWord(word)) {
                         case "lucru", "solutionata", "solutionat", "confirmare", "necesita",

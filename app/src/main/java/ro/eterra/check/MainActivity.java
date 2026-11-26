@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.text.method.DigitsKeyListener;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -48,6 +49,7 @@ public final class MainActivity extends Activity {
     private TextView preview;
     private boolean historyVisible;
     private boolean reading;
+    private boolean selectingAll;
     private Uri pendingImage;
     private String message = "";
 
@@ -249,7 +251,9 @@ public final class MainActivity extends Activity {
             EditText deadline = field(item, "Termen cerere", row.deadline(), false);
             EditText flow = field(item, "Flux", row.flow(), false);
             review.add(new ReviewRow(include, number, client, status, uat, deadline, flow));
-            include.setOnCheckedChangeListener((button, checked) -> refreshPreview());
+            include.setOnCheckedChangeListener((button, checked) -> {
+                if (!selectingAll) refreshPreview();
+            });
             TextWatcher watcher = new TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
                 @Override public void onTextChanged(CharSequence text, int start, int before, int count) {}
@@ -260,6 +264,10 @@ public final class MainActivity extends Activity {
             }
         }
         refreshPreview();
+        LinearLayout toolbar = column();
+        toolbar.setPadding(dp(16), 0, dp(16), 0);
+        toolbar.addView(button("Selectează toate", WHITE, INK, view -> selectAll()));
+        root.addView(toolbar);
         LinearLayout actions = new LinearLayout(this);
         actions.setPadding(dp(16), dp(4), dp(16), dp(8));
         actions.addView(button("Renunță", WHITE, INK, view -> {
@@ -270,6 +278,18 @@ public final class MainActivity extends Activity {
         actions.addView(button("Salvează importul", BLUE, WHITE, view -> save()),
                 new LinearLayout.LayoutParams(0, -2, 2));
         root.addView(actions);
+    }
+
+    private void selectAll() {
+        selectingAll = true;
+        try {
+            for (ReviewRow row : review) {
+                row.include().setChecked(CaseRow.validNumber(value(row.number())));
+            }
+        } finally {
+            selectingAll = false;
+        }
+        refreshPreview();
     }
 
     private void refreshPreview() {
@@ -397,6 +417,10 @@ public final class MainActivity extends Activity {
         input.setTextSize(16);
         input.setSingleLine(true);
         input.setInputType(numeric ? InputType.TYPE_CLASS_NUMBER : InputType.TYPE_CLASS_TEXT);
+        if (numeric) {
+            input.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
+            input.setRawInputType(InputType.TYPE_CLASS_NUMBER);
+        }
         input.setText(value);
         input.setContentDescription(title);
         card.addView(input);

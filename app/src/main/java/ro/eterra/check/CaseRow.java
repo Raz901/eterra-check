@@ -8,6 +8,11 @@ record CaseRow(String number, String client, String status, String uat, String d
         return number.matches("[0-9]+");
     }
 
+    static String readNumber(String value) {
+        String digits = value.replaceAll("[\\p{P}\\p{Z}\\s]+", "");
+        return validNumber(digits) ? digits : "";
+    }
+
     static String normalized(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).trim()

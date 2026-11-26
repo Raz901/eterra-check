@@ -62,7 +62,7 @@ final class ScreenshotReader {
         List<CaseRow> rows = new ArrayList<>();
         for (String[] row : values) {
             if (Arrays.stream(row).allMatch(String::isEmpty)) continue;
-            rows.add(new CaseRow(row[2].replaceAll("\\s", ""), row[1], CaseRow.displayStatus(row[0]), row[3], row[4], row[5]));
+            rows.add(new CaseRow(CaseRow.readNumber(row[2]), row[1], CaseRow.displayStatus(row[0]), row[3], row[4], row[5]));
         }
         return rows;
     }
